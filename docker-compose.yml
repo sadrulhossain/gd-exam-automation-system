@@ -1,0 +1,96 @@
+# Development stack: mongo (single-node replica set), api (tsx watch), web (Vite HMR).
+# Usage: cp .env.example .env && make up   (or: docker compose up -d --build --wait)
+name: eas
+
+services:
+  mongo:
+    container_name: eas-mongo
+    image: mongo:8.0.32
+    command: ['--replSet', 'rs0', '--bind_ip_all']
+    ports:
+      # Host tools must connect with ?directConnection=true (replica set member host is "mongo").
+      - '127.0.0.1:${MONGO_PORT:-27017}:27017'
+    volumes:
+      - mongo_data:/data/db
+      - ./docker/mongo/rs-healthcheck.sh:/usr/local/bin/rs-healthcheck.sh:ro
+    healthcheck:
+      test: ['CMD', 'sh', '/usr/local/bin/rs-healthcheck.sh']
+      interval: 5s
+      timeout: 10s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+
+  api:
+    container_name: eas-api
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: dev
+    env_file: .env
+    environment:
+      NODE_ENV: development
+      PORT: '3000'
+      MONGODB_URI: mongodb://mongo:27017/${MONGO_DB:-exam_automation}?replicaSet=rs0
+    ports:
+      - '${API_PORT:-3000}:3000'
+    volumes:
+      - .:/app
+      # Keep the image's installed dependencies instead of the host's node_modules.
+      - /app/node_modules
+    depends_on:
+      mongo:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:3000/health']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+    restart: unless-stopped
+
+  web:
+    container_name: eas-web
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: dev
+    env_file: .env
+    environment:
+      NODE_ENV: development
+      API_PROXY_TARGET: http://api:3000
+      VITE_USE_POLLING: 'true'
+    ports:
+      - '${WEB_PORT:-5173}:5173'
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:5173/']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 15s
+    restart: unless-stopped
+
+  # Optional DB browser: docker compose --profile tools up -d mongo-express
+  mongo-express:
+    container_name: eas-mongo-express
+    profiles: ['tools']
+    image: mongo-express:1.0.2-20-alpine3.19
+    environment:
+      ME_CONFIG_MONGODB_URL: mongodb://mongo:27017/?replicaSet=rs0
+      ME_CONFIG_BASICAUTH_USERNAME: ${MONGO_EXPRESS_USER:-admin}
+      ME_CONFIG_BASICAUTH_PASSWORD: ${MONGO_EXPRESS_PASSWORD:-change-me}
+    ports:
+      - '127.0.0.1:${MONGO_EXPRESS_PORT:-8081}:8081'
+    depends_on:
+      mongo:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  mongo_data:

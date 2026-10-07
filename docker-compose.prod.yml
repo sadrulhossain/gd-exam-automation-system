@@ -1,0 +1,98 @@
+# Production stack for a single VPS: caddy (automatic HTTPS) -> web (nginx) + api -> mongo.
+# All secrets come from .env.production (never committed). Usage:
+#   docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build --wait
+# --env-file is needed so ${DOMAIN} etc. interpolate; env_file below feeds the containers.
+name: eas-prod
+
+services:
+  mongo:
+    container_name: eas-prod-mongo
+    image: mongo:8.0.32
+    env_file: .env.production
+    # Replica sets with auth require a keyfile; it is written from MONGO_REPLICA_KEY at start.
+    entrypoint:
+      - bash
+      - -c
+      - |
+        printf '%s' "$$MONGO_REPLICA_KEY" > /tmp/mongo-keyfile
+        chmod 400 /tmp/mongo-keyfile
+        chown mongodb:mongodb /tmp/mongo-keyfile
+        exec docker-entrypoint.sh mongod --replSet rs0 --keyFile /tmp/mongo-keyfile --bind_ip_all
+    volumes:
+      - mongo_data:/data/db
+      - ./docker/mongo/rs-healthcheck.sh:/usr/local/bin/rs-healthcheck.sh:ro
+    healthcheck:
+      test: ['CMD', 'sh', '/usr/local/bin/rs-healthcheck.sh']
+      interval: 5s
+      timeout: 10s
+      retries: 20
+      start_period: 20s
+    restart: unless-stopped
+
+  api:
+    container_name: eas-prod-api
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+      target: runtime
+    env_file: .env.production
+    environment:
+      NODE_ENV: production
+      PORT: '3000'
+    depends_on:
+      mongo:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:3000/health']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    restart: unless-stopped
+
+  web:
+    container_name: eas-prod-web
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: runtime
+      args:
+        # Empty = same origin; Caddy routes /api to the api service.
+        VITE_API_URL: ${VITE_API_URL:-}
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1/']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  caddy:
+    container_name: eas-prod-caddy
+    image: caddy:2.11.7-alpine
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env.production}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL in .env.production}
+    ports:
+      - '${HTTP_PORT:-80}:80'
+      - '${HTTPS_PORT:-443}:443'
+      - '${HTTPS_PORT:-443}:443/udp'
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://127.0.0.1:2019/config/']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  mongo_data:
+  caddy_data:
+  caddy_config:
