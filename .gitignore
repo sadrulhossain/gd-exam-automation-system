@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Test artifacts
+playwright-report/
+test-results/
+
+# Editors and OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
