@@ -4,6 +4,7 @@ name: eas
 
 services:
   mongo:
+    container_name: eas-mongo
     image: mongo:8.0.32
     command: ['--replSet', 'rs0', '--bind_ip_all']
     ports:
@@ -21,6 +22,7 @@ services:
     restart: unless-stopped
 
   api:
+    container_name: eas-api
     build:
       context: .
       dockerfile: apps/api/Dockerfile
@@ -48,6 +50,7 @@ services:
     restart: unless-stopped
 
   web:
+    container_name: eas-web
     build:
       context: .
       dockerfile: apps/web/Dockerfile
@@ -75,6 +78,7 @@ services:
 
   # Optional DB browser: docker compose --profile tools up -d mongo-express
   mongo-express:
+    container_name: eas-mongo-express
     profiles: ['tools']
     image: mongo-express:1.0.2-20-alpine3.19
     environment:

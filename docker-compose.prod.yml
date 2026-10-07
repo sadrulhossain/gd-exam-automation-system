@@ -6,6 +6,7 @@ name: eas-prod
 
 services:
   mongo:
+    container_name: eas-prod-mongo
     image: mongo:8.0.32
     env_file: .env.production
     # Replica sets with auth require a keyfile; it is written from MONGO_REPLICA_KEY at start.
@@ -29,6 +30,7 @@ services:
     restart: unless-stopped
 
   api:
+    container_name: eas-prod-api
     build:
       context: .
       dockerfile: apps/api/Dockerfile
@@ -49,6 +51,7 @@ services:
     restart: unless-stopped
 
   web:
+    container_name: eas-prod-web
     build:
       context: .
       dockerfile: apps/web/Dockerfile
@@ -64,6 +67,7 @@ services:
     restart: unless-stopped
 
   caddy:
+    container_name: eas-prod-caddy
     image: caddy:2.11.7-alpine
     environment:
       DOMAIN: ${DOMAIN:?set DOMAIN in .env.production}
