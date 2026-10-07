@@ -5,18 +5,18 @@ Web application for universities with two modules:
 1. **Student exam seat plans**: design and publish seat allocations per exam.
 2. **Teacher exam duty plans**: allocate invigilators and publish duty rosters.
 
-> **Status:** early development. Only project context and conventions exist so far.
+> **Status:** early development. Monorepo scaffold is in place; no features yet.
 > See [CLAUDE.md](CLAUDE.md) for the segment plan and progress.
 
 ## Roles
 
-| Role | Access |
-|------|--------|
-| superadmin | Faculties, departments, authority users, role-permission control |
+| Role       | Access                                                                                                                                                      |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| superadmin | Faculties, departments, authority users, role-permission control                                                                                            |
 | dept_admin | Own department only: campuses, buildings, rooms (row x column seat grids), teachers, students, courses, classes and sections, exams, seat plans, duty plans |
-| teacher | Edit own profile; view seat plans, own duty plans, department reports |
-| student | View own seat assignment only |
-| authority | Read-only reports across departments |
+| teacher    | Edit own profile; view seat plans, own duty plans, department reports                                                                                       |
+| student    | View own seat assignment only                                                                                                                               |
+| authority  | Read-only reports across departments                                                                                                                        |
 
 ## Tech Stack
 
@@ -51,6 +51,23 @@ packages/allocation Pure allocation algorithms (no I/O)
 
 ## Getting Started
 
-Setup, run and test instructions will be added as the tooling lands
-(monorepo scaffold, Docker environment). The full README is finalised in the
-documentation segment.
+Requires Node.js 24 (see `.nvmrc`).
+
+```bash
+npm install
+cp .env.example .env   # placeholders only
+npm run dev            # API on :3000, web on :5173
+```
+
+| Script              | Purpose                               |
+| ------------------- | ------------------------------------- |
+| `npm run dev`       | Build libraries, then run API and web |
+| `npm run lint`      | ESLint (flat config)                  |
+| `npm run typecheck` | `tsc --noEmit` in every workspace     |
+| `npm test`          | Vitest, one project per workspace     |
+| `npm run build`     | Build libraries, then API and web     |
+| `npm run format`    | Prettier                              |
+
+Workspace packages (`@eas/shared`, `@eas/allocation`) expose a `source` export
+condition pointing at `src/`, used by dev, tests and typecheck, so no build or
+path aliases are needed. Production builds use the compiled `dist/` output.
