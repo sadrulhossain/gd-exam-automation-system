@@ -88,6 +88,47 @@ The domain contract used by both API and web. Its only runtime dependency is `zo
 - Ids cross the API as 24-char hex strings, dates as `YYYY-MM-DD`, times as `HH:mm`,
   timestamps as ISO 8601.
 
+## API (`apps/api`)
+
+```
+src/config       Zod-validated environment (fails fast, lists every bad variable)
+src/app.ts       createApp({ config, logger, db }): middleware order and routing
+src/server.ts    start(), graceful shutdown, process entrypoint (index.ts calls main)
+src/middleware   request id, logging, security, rate limit, validate, 404, error handler
+src/modules      one folder per feature; modules/index.ts mounts them under /api/v1
+src/db           Mongoose connection with retry, DbStatus for health checks
+src/lib          AppError and HTTP status map, logger
+src/docs         OpenAPI document built from Zod schemas
+src/tests        Vitest + Supertest + mongodb-memory-server (globalSetup, helpers)
+```
+
+**Environment** (see `.env.example`; invalid values stop startup with exit code 1):
+`NODE_ENV`, `PORT`, `MONGODB_URI`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` (32+ chars,
+different from each other), `CORS_ORIGIN` (comma-separated exact origins, required in
+production), `LOG_LEVEL`, plus optional `JWT_*_TTL`, `TRUST_PROXY`, `RATE_LIMIT_*`.
+Production also rejects secrets that still start with `change-me`.
+
+**Endpoints**
+
+| Path                 | Purpose                                                                    |
+| -------------------- | -------------------------------------------------------------------------- |
+| `GET /health`        | Liveness for container probes. No database, no rate limit.                 |
+| `GET /api/v1/health` | Service and DB state (`ok` or `degraded`); always 200.                     |
+| `GET /api/v1/ready`  | 200 only when MongoDB answers a ping, otherwise 503 `SERVICE_UNAVAILABLE`. |
+| `GET /api/v1/docs`   | Swagger UI, plus `/api/v1/docs.json`. Not mounted in production.           |
+
+**Errors** always use `{ error: { code, message, details? } }` with codes from
+`@eas/shared`. Throw `AppError` (or `notFound()`, `forbidden()`, ...) in handlers; unknown
+errors become a generic 500. Stack traces and messages of unexpected errors are logged,
+never returned, except in `NODE_ENV=development`.
+
+**Adding a route:** put it in `src/modules/<name>/`, validate input with
+`validate({ body, query, params })` using schemas from `@eas/shared`, read the result with
+`validated<typeof schemas>(req)`, and mount the router in `src/modules/index.ts`.
+
+**Shutdown:** on SIGTERM/SIGINT the server stops accepting connections, drains requests,
+closes MongoDB, then exits 0 (open connections are cut after 10 s).
+
 ## Docker
 
 ### Development stack
@@ -101,7 +142,7 @@ make up        # or: docker compose up -d --build --wait --renew-anon-volumes
 ```
 
 - Web: http://localhost:5173 (shows the API status; `/api` is proxied to the API)
-- API: http://localhost:3000/health and `/api/v1/health`
+- API: http://localhost:3000/health, `/api/v1/health` and `/api/v1/ready`
 - MongoDB from the host: `mongodb://localhost:27017/exam_automation?directConnection=true`
 - Host ports are set in `.env` (`WEB_PORT`, `API_PORT`, `MONGO_PORT`) if the defaults are taken.
 - DB browser (optional): `docker compose --profile tools up -d mongo-express`
