@@ -72,6 +72,22 @@ Workspace packages (`@eas/shared`, `@eas/allocation`) expose a `source` export
 condition pointing at `src/`, used by dev, tests and typecheck, so no build or
 path aliases are needed. Production builds use the compiled `dist/` output.
 
+## Shared Package (`@eas/shared`)
+
+The domain contract used by both API and web. Its only runtime dependency is `zod`.
+
+- **Constants:** `ROLES`, `PERMISSIONS`, `DEFAULT_ROLE_PERMISSIONS`, `PLAN_STATUSES`,
+  `ERROR_CODES`.
+- **Schemas and inferred types:** faculty, department, user, campus, building, room,
+  teacher, student, course, class group (with sections), exam, exam session, seat plan
+  and assignment, duty plan and assignment, pagination query, `ApiError`. Each CRUD
+  entity has `XSchema` (as returned by the API), `CreateXSchema` and `UpdateXSchema`
+  (partial). Create inputs never carry `departmentId`: the repository layer injects it.
+- **Room helpers:** `roomCapacity(room)` and `isValidSeat(room, row, col)`. Rows and
+  columns are 1-based; blocked seats are part of the grid but not usable.
+- Ids cross the API as 24-char hex strings, dates as `YYYY-MM-DD`, times as `HH:mm`,
+  timestamps as ISO 8601.
+
 ## Docker
 
 ### Development stack
