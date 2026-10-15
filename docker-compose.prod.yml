@@ -39,6 +39,8 @@ services:
     environment:
       NODE_ENV: production
       PORT: '3000'
+      # Caddy is the one proxy in front of the API; needed for correct per-client rate limits.
+      TRUST_PROXY: '1'
     depends_on:
       mongo:
         condition: service_healthy
