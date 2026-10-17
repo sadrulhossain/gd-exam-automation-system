@@ -6,6 +6,9 @@ export const LOG_LEVELS = ['fatal', 'error', 'warn', 'info', 'debug', 'trace', '
 const MIN_SECRET_LENGTH = 32;
 const PLACEHOLDER_PREFIX = 'change-me';
 
+const DURATION_PATTERN = /^\d+(s|m|h|d)$/;
+const duration = z.string().regex(DURATION_PATTERN, 'must look like 30s, 15m, 12h or 7d');
+
 const secret = z
   .string()
   .min(MIN_SECRET_LENGTH, `must be at least ${MIN_SECRET_LENGTH} characters`);
@@ -46,14 +49,30 @@ const EnvSchema = z
       .regex(/^mongodb(\+srv)?:\/\//, 'must start with mongodb:// or mongodb+srv://'),
     JWT_ACCESS_SECRET: secret,
     JWT_REFRESH_SECRET: secret,
-    JWT_ACCESS_TTL: z.string().min(1).default('15m'),
-    JWT_REFRESH_TTL: z.string().min(1).default('7d'),
+    JWT_ACCESS_TTL: duration.default('15m'),
+    JWT_REFRESH_TTL: duration.default('7d'),
     CORS_ORIGIN: corsOrigins.optional(),
     LOG_LEVEL: z.enum(LOG_LEVELS).default('info'),
     /** Number of reverse proxies in front of the API (Caddy in production = 1). */
     TRUST_PROXY: z.coerce.number().int().min(0).max(10).default(0),
     RATE_LIMIT_WINDOW_MS: z.coerce.number().int().min(1000).default(60_000),
     RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(300),
+    /** Per-IP limit on the credential endpoints (login, refresh, change-password). */
+    AUTH_RATE_LIMIT_WINDOW_MS: z.coerce
+      .number()
+      .int()
+      .min(1000)
+      .default(15 * 60_000),
+    AUTH_RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(20),
+    /** Consecutive failed logins before an account is locked. */
+    AUTH_LOCKOUT_THRESHOLD: z.coerce.number().int().min(1).default(5),
+    /** First lock lasts this long; each further failure doubles it, up to AUTH_LOCKOUT_MAX_MS. */
+    AUTH_LOCKOUT_BASE_MS: z.coerce.number().int().min(1000).default(60_000),
+    AUTH_LOCKOUT_MAX_MS: z.coerce
+      .number()
+      .int()
+      .min(1000)
+      .default(60 * 60_000),
   })
   .superRefine((env, ctx) => {
     if (env.JWT_ACCESS_SECRET === env.JWT_REFRESH_SECRET) {
@@ -99,6 +118,10 @@ export interface Config {
   logLevel: (typeof LOG_LEVELS)[number];
   trustProxy: number;
   rateLimit: { windowMs: number; max: number };
+  auth: {
+    rateLimit: { windowMs: number; max: number };
+    lockout: { threshold: number; baseMs: number; maxMs: number };
+  };
 }
 
 /** Thrown when the environment is invalid. `message` lists every problem, one per line. */
@@ -144,5 +167,13 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): Config {
     logLevel: env.LOG_LEVEL,
     trustProxy: env.TRUST_PROXY,
     rateLimit: { windowMs: env.RATE_LIMIT_WINDOW_MS, max: env.RATE_LIMIT_MAX },
+    auth: {
+      rateLimit: { windowMs: env.AUTH_RATE_LIMIT_WINDOW_MS, max: env.AUTH_RATE_LIMIT_MAX },
+      lockout: {
+        threshold: env.AUTH_LOCKOUT_THRESHOLD,
+        baseMs: env.AUTH_LOCKOUT_BASE_MS,
+        maxMs: env.AUTH_LOCKOUT_MAX_MS,
+      },
+    },
   };
 }

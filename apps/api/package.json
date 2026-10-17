@@ -8,6 +8,7 @@
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
+    "seed": "tsx --conditions=source --env-file-if-exists=../../.env scripts/seed.ts",
     "test": "vitest run",
     "dev:poll": "nodemon --legacy-watch --watch src --watch ../../packages --ext ts,json --ignore \"**/node_modules/**\" --ignore \"**/dist/**\" --exec \"tsx --conditions=source src/index.ts\""
   },
@@ -15,10 +16,13 @@
     "@asteasolutions/zod-to-openapi": "^9.1.0",
     "@eas/allocation": "^0.0.0",
     "@eas/shared": "^0.0.0",
+    "argon2": "^0.45.1",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "express": "^5.2.1",
     "express-rate-limit": "^8.7.1",
     "helmet": "^8.3.0",
+    "jose": "^6.2.12",
     "mongoose": "^9.11.2",
     "pino": "^10.4.0",
     "pino-http": "^11.0.0",
@@ -26,6 +30,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/supertest": "^7.2.1",

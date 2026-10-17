@@ -4,6 +4,7 @@ import { createApp } from './app.js';
 import { ConfigError, loadConfig, type Config } from './config/index.js';
 import { connectWithRetry, disconnectDb, mongooseDbStatus } from './db/index.js';
 import { createLogger, type Logger } from './lib/logger.js';
+import { createSystemRepositories } from './repositories/index.js';
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 
@@ -16,6 +17,8 @@ export interface RunningServer {
 
 export async function start(config: Config, logger: Logger): Promise<RunningServer> {
   await connectWithRetry(config.mongodbUri, logger);
+  const seeded = await createSystemRepositories().rolePermissions.seedDefaults();
+  if (seeded.length > 0) logger.info({ roles: seeded }, 'Seeded default role permissions');
 
   const app = createApp({ config, logger, db: mongooseDbStatus });
   const server = await new Promise<Server>((resolve, reject) => {

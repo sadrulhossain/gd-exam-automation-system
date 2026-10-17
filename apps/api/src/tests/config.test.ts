@@ -36,6 +36,33 @@ describe('loadConfig', () => {
     });
   });
 
+  it('applies auth defaults: 20 requests per 15 minutes, lock after 5 failures', () => {
+    expect(loadConfig(validEnv).auth).toEqual({
+      rateLimit: { windowMs: 900_000, max: 20 },
+      lockout: { threshold: 5, baseMs: 60_000, maxMs: 3_600_000 },
+    });
+  });
+
+  it('reads auth overrides', () => {
+    const config = loadConfig({
+      ...validEnv,
+      AUTH_RATE_LIMIT_MAX: '5',
+      AUTH_LOCKOUT_THRESHOLD: '3',
+      AUTH_LOCKOUT_BASE_MS: '2000',
+    });
+    expect(config.auth.rateLimit.max).toBe(5);
+    expect(config.auth.lockout).toMatchObject({ threshold: 3, baseMs: 2000 });
+  });
+
+  it.each(['15', 'fifteen', '15 m', '1w', '-5m'])('rejects the token TTL %j', (ttl) => {
+    expect(issuesFor({ ...validEnv, JWT_ACCESS_TTL: ttl })).toEqual([
+      expect.stringContaining('JWT_ACCESS_TTL'),
+    ]);
+    expect(issuesFor({ ...validEnv, JWT_REFRESH_TTL: ttl })).toEqual([
+      expect.stringContaining('JWT_REFRESH_TTL'),
+    ]);
+  });
+
   it('coerces numbers and parses the CORS origin list', () => {
     const config = loadConfig({
       ...validEnv,

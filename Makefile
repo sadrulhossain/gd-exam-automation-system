@@ -25,7 +25,7 @@ test: ## Run all tests inside the api container
 lint: ## Run ESLint inside the api container
 	$(COMPOSE) run --rm --no-deps api npm run lint
 
-seed: ## Seed the dev database (no-op until a seed script exists)
+seed: ## Seed development users and role grants (refuses production)
 	$(COMPOSE) exec api npm run seed -w @eas/api --if-present
 
 backup: ## Dump the dev database to backups/<timestamp>.archive.gz

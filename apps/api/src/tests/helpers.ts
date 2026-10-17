@@ -6,6 +6,7 @@ import { createApp } from '../app.js';
 import type { Config } from '../config/index.js';
 import type { DbState, DbStatus } from '../db/index.js';
 import { createLogger, type Logger } from '../lib/logger.js';
+import type { AuthKit } from '../modules/auth/index.js';
 
 export function testConfig(overrides: Partial<Config> = {}): Config {
   return {
@@ -23,6 +24,10 @@ export function testConfig(overrides: Partial<Config> = {}): Config {
     logLevel: 'silent',
     trustProxy: 0,
     rateLimit: { windowMs: 60_000, max: 10_000 },
+    auth: {
+      rateLimit: { windowMs: 60_000, max: 10_000 },
+      lockout: { threshold: 5, baseMs: 60_000, maxMs: 3_600_000 },
+    },
     ...overrides,
   };
 }
@@ -62,6 +67,7 @@ export interface BuildTestAppOptions {
   logger?: Logger;
   db?: DbStatus;
   extraRouters?: readonly Router[];
+  auth?: AuthKit;
 }
 
 /** Builds the real app with test defaults: silent logs, no database, generous rate limit. */
@@ -72,6 +78,7 @@ export function buildTestApp(options: BuildTestAppOptions = {}): Express {
     logger: options.logger ?? createLogger(config),
     db: options.db ?? fakeDb(),
     ...(options.extraRouters === undefined ? {} : { extraRouters: options.extraRouters }),
+    ...(options.auth === undefined ? {} : { auth: options.auth }),
   });
 }
 
