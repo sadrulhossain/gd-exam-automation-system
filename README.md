@@ -5,7 +5,7 @@ Web application for universities with two modules:
 1. **Student exam seat plans**: design and publish seat allocations per exam.
 2. **Teacher exam duty plans**: allocate invigilators and publish duty rosters.
 
-> **Status:** early development. Monorepo scaffold is in place; no features yet.
+> **Status:** early development. Scaffold, Docker, shared package, API foundation, and authentication and RBAC are in place.
 > See [CLAUDE.md](CLAUDE.md) for the segment plan and progress.
 
 ## Roles
@@ -94,10 +94,13 @@ The domain contract used by both API and web. Its only runtime dependency is `zo
 src/config       Zod-validated environment (fails fast, lists every bad variable)
 src/app.ts       createApp({ config, logger, db }): middleware order and routing
 src/server.ts    start(), graceful shutdown, process entrypoint (index.ts calls main)
-src/middleware   request id, logging, security, rate limit, validate, 404, error handler
+src/middleware   request id, logging, security, rate limit, validate, auth guards, 404, error handler
 src/modules      one folder per feature; modules/index.ts mounts them under /api/v1
+src/models       Mongoose schemas (User, RolePermission, RefreshToken); import only from repositories
+src/repositories department-scoped data access; the only code that touches models
+src/seed         dev seed logic and CLI (apps/api/scripts/seed.ts is the entry point)
 src/db           Mongoose connection with retry, DbStatus for health checks
-src/lib          AppError and HTTP status map, logger
+src/lib          AppError and HTTP status map, logger, duration parsing
 src/docs         OpenAPI document built from Zod schemas
 src/tests        Vitest + Supertest + mongodb-memory-server (globalSetup, helpers)
 ```
@@ -105,7 +108,8 @@ src/tests        Vitest + Supertest + mongodb-memory-server (globalSetup, helper
 **Environment** (see `.env.example`; invalid values stop startup with exit code 1):
 `NODE_ENV`, `PORT`, `MONGODB_URI`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` (32+ chars,
 different from each other), `CORS_ORIGIN` (comma-separated exact origins, required in
-production), `LOG_LEVEL`, plus optional `JWT_*_TTL`, `TRUST_PROXY`, `RATE_LIMIT_*`.
+production), `LOG_LEVEL`, plus optional `JWT_*_TTL` (like `15m`, `7d`), `TRUST_PROXY`,
+`RATE_LIMIT_*`, `AUTH_RATE_LIMIT_*` and `AUTH_LOCKOUT_*`.
 Production also rejects secrets that still start with `change-me`.
 
 **Endpoints**
@@ -116,6 +120,12 @@ Production also rejects secrets that still start with `change-me`.
 | `GET /api/v1/health` | Service and DB state (`ok` or `degraded`); always 200.                     |
 | `GET /api/v1/ready`  | 200 only when MongoDB answers a ping, otherwise 503 `SERVICE_UNAVAILABLE`. |
 | `GET /api/v1/docs`   | Swagger UI, plus `/api/v1/docs.json`. Not mounted in production.           |
+| `/api/v1/auth/*`     | `login`, `refresh`, `logout`, `change-password`, `me`. See below.          |
+
+**Authentication and authorization:** see [docs/authentication.md](docs/authentication.md)
+for tokens, the refresh cookie versus body trade-off, lockout, permissions and the
+repository layer. Seed development users with `make seed` (or
+`npm run seed -w @eas/api`); it refuses `NODE_ENV=production` unless `ALLOW_PROD_SEED=true`.
 
 **Errors** always use `{ error: { code, message, details? } }` with codes from
 `@eas/shared`. Throw `AppError` (or `notFound()`, `forbidden()`, ...) in handlers; unknown
@@ -124,7 +134,10 @@ never returned, except in `NODE_ENV=development`.
 
 **Adding a route:** put it in `src/modules/<name>/`, validate input with
 `validate({ body, query, params })` using schemas from `@eas/shared`, read the result with
-`validated<typeof schemas>(req)`, and mount the router in `src/modules/index.ts`.
+`validated<typeof schemas>(req)`, guard it with `deps.auth.middleware` (`authenticate()`,
+`requireRole`, `requirePermission`), reach data only through `requireRepos(req)`, and mount
+the router in `src/modules/index.ts`. ESLint rejects importing `mongoose` or a model
+outside `models/`, `repositories/`, `db/` and tests.
 
 **Shutdown:** on SIGTERM/SIGINT the server stops accepting connections, drains requests,
 closes MongoDB, then exits 0 (open connections are cut after 10 s).
