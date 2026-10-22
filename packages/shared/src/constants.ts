@@ -63,6 +63,16 @@ export const DEFAULT_ROLE_PERMISSIONS: Readonly<Record<Role, readonly Permission
   [ROLES.AUTHORITY]: [P.REPORT_VIEW],
 };
 
+/**
+ * Grants the superadmin role can never lose: without them nobody could manage departments,
+ * users or role permissions again, and the system would need manual database repair.
+ */
+export const SUPERADMIN_REQUIRED_PERMISSIONS: readonly Permission[] = [
+  P.DEPARTMENT_MANAGE,
+  P.USER_MANAGE,
+  P.ROLE_MANAGE,
+];
+
 /** Plans are generated as `draft` and published by a single document update. */
 export const PLAN_STATUSES = {
   DRAFT: 'draft',

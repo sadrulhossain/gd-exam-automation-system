@@ -4,11 +4,13 @@ import type { PasswordHasher } from '../modules/auth/password.js';
 import type { SystemRepositories } from '../repositories/index.js';
 
 /**
- * Id of the placeholder department the development users belong to. The Department
- * collection arrives with the superadmin module (segment 6), which creates the real
- * document under this id so the seeded users resolve to it.
+ * Id of the department the development users belong to. Non-production seeding creates the
+ * real department document (under a development faculty) with this id.
  */
 export const DEV_DEPARTMENT_ID = '6a0000000000000000000001';
+
+const DEV_FACULTY = { name: 'Development Faculty', code: 'DEVF' };
+const DEV_DEPARTMENT = { name: 'Development Department', code: 'DEVD' };
 
 /** Password given to seeded users in development when SEED_PASSWORD is not set. */
 export const DEV_SEED_PASSWORD = 'DevPassw0rd!';
@@ -116,6 +118,16 @@ export async function runSeed({ env, repos, hasher, logger }: SeedDeps): Promise
 
   const roles = await repos.rolePermissions.seedDefaults();
   if (roles.length > 0) logger.info({ roles }, 'Seeded default role permissions');
+
+  if (!isProduction(env)) {
+    const faculty = await repos.faculties.ensure(DEV_FACULTY);
+    const created = await repos.departments.ensureWithId({
+      id: DEV_DEPARTMENT_ID,
+      facultyId: faculty._id.toString(),
+      ...DEV_DEPARTMENT,
+    });
+    if (created) logger.info({ departmentId: DEV_DEPARTMENT_ID }, 'Seeded development department');
+  }
 
   const passwordHash = await hasher.hash(password);
   for (const user of seedUsers(env)) {

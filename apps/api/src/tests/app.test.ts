@@ -340,6 +340,21 @@ describe('API docs', () => {
     expect(ui.headers['content-type']).toContain('text/html');
   });
 
+  it('documents the superadmin endpoints', async () => {
+    const json = await request(app).get('/api/v1/docs.json');
+    expect(Object.keys(json.body.paths)).toEqual(
+      expect.arrayContaining([
+        '/api/v1/faculties',
+        '/api/v1/faculties/{id}/restore',
+        '/api/v1/departments/{id}',
+        '/api/v1/users/department-admins',
+        '/api/v1/users/{id}/reset-password',
+        '/api/v1/roles/{role}/permissions',
+        '/api/v1/audit-logs',
+      ]),
+    );
+  });
+
   it('does not mount docs in production', async () => {
     const prod = buildTestApp({ config: productionConfig() });
     for (const path of ['/api/v1/docs.json', '/api/v1/docs/']) {

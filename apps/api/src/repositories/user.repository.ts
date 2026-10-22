@@ -1,9 +1,21 @@
 import { Types } from 'mongoose';
+import { ROLES } from '@eas/shared';
+import { allOf, searchClause } from '../lib/query.js';
 import { UserModel, type UserDoc } from '../models/index.js';
 import { ScopedRepository, type Lean } from './base.repository.js';
-import type { RepoScope } from './scope.js';
+import { assertSuperadmin, type RepoScope } from './scope.js';
 
 export type UserRecord = Lean<UserDoc>;
+
+export interface UserSearch {
+  search?: string | undefined;
+  role?: UserDoc['role'] | undefined;
+  departmentId?: string | undefined;
+  isActive?: boolean | undefined;
+  sort: Record<string, 1 | -1>;
+  skip: number;
+  limit: number;
+}
 /** A user including the password hash; only the auth service ever asks for this. */
 export type UserWithSecret = UserRecord;
 
@@ -32,6 +44,46 @@ export interface LockoutPolicy {
 export class UserRepository extends ScopedRepository<UserDoc> {
   constructor(scope: RepoScope) {
     super(UserModel, scope, { departmentField: 'departmentId', studentOwnerField: '_id' });
+  }
+
+  /** Filtered, paginated listing for user administration. */
+  async search(query: UserSearch): Promise<{ items: UserRecord[]; total: number }> {
+    const filter = allOf(
+      searchClause(query.search, ['email', 'name']),
+      query.role === undefined ? null : { role: query.role },
+      query.departmentId === undefined
+        ? null
+        : { departmentId: new Types.ObjectId(query.departmentId) },
+      query.isActive === undefined ? null : { isActive: query.isActive },
+    );
+    const [items, total] = await Promise.all([
+      this.find(filter, { sort: query.sort, skip: query.skip, limit: query.limit }),
+      this.count(filter),
+    ]);
+    return { items, total };
+  }
+
+  countActiveSuperadmins(): Promise<number> {
+    return this.count({ role: ROLES.SUPERADMIN, isActive: true });
+  }
+
+  /**
+   * Activates or deactivates an account (superadmin only). Deactivation bumps `tokenVersion`
+   * so access tokens stop working at once; reactivation clears any login lockout. Returns
+   * null when the user is missing or already in the requested state.
+   */
+  async setActive(id: string | Types.ObjectId, isActive: boolean): Promise<UserRecord | null> {
+    assertSuperadmin(this.scope);
+    const update = isActive
+      ? { $set: { isActive: true, failedLoginAttempts: 0, lockedUntil: null } }
+      : { $set: { isActive: false }, $inc: { tokenVersion: 1 } };
+    return (await UserModel.findOneAndUpdate(
+      this.scoped({ _id: id, isActive: !isActive }),
+      update,
+      { returnDocument: 'after' },
+    )
+      .lean()
+      .exec()) as UserRecord | null;
   }
 
   private requireSystem(): void {

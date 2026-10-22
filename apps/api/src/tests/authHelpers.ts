@@ -5,7 +5,14 @@ import type { Config } from '../config/index.js';
 import { connectWithRetry, disconnectDb } from '../db/index.js';
 import { createLogger } from '../lib/logger.js';
 import { createAuthKit, type AuthKit } from '../modules/auth/index.js';
-import { RefreshTokenModel, RolePermissionModel, UserModel } from '../models/index.js';
+import {
+  AuditLogModel,
+  DepartmentModel,
+  FacultyModel,
+  RefreshTokenModel,
+  RolePermissionModel,
+  UserModel,
+} from '../models/index.js';
 import { buildTestApp, testConfig, uniqueDbUri } from './helpers.js';
 
 export const PASSWORD = 'correct-horse-battery';
@@ -16,7 +23,15 @@ export const DEPT_B = 'b2b2b2b2b2b2b2b2b2b2b2b2';
 export async function startAuthDb(config: Config = testConfig()): Promise<AuthKit> {
   const kit = createAuthKit({ config, logger: createLogger(config) });
   await connectWithRetry(uniqueDbUri(), createLogger(config));
-  await Promise.all([UserModel.init(), RefreshTokenModel.init(), RolePermissionModel.init()]);
+  // Build every index up front: the tests rely on the unique indexes to reject duplicates.
+  await Promise.all([
+    UserModel.init(),
+    RefreshTokenModel.init(),
+    RolePermissionModel.init(),
+    FacultyModel.init(),
+    DepartmentModel.init(),
+    AuditLogModel.init(),
+  ]);
   await kit.repos.rolePermissions.seedDefaults();
   return kit;
 }

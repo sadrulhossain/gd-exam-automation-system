@@ -1,4 +1,5 @@
 import { DEPARTMENT_SCOPED_ROLES, ROLES, type Role } from '@eas/shared';
+import { forbidden } from '../lib/errors.js';
 
 /** The signed-in user, as the repository layer needs to know them. */
 export interface ActorScope {
@@ -34,3 +35,18 @@ export function actorScope(actor: {
 
 export const isReadOnlyScope = (scope: RepoScope): boolean =>
   scope.kind === 'actor' && (scope.role === ROLES.AUTHORITY || scope.role === ROLES.STUDENT);
+
+export const isSuperadminOrSystem = (scope: RepoScope): boolean =>
+  scope.kind === 'system' || scope.role === ROLES.SUPERADMIN;
+
+/** Guard for collections only the superadmin (or trusted system code) may change. */
+export function assertSuperadmin(scope: RepoScope): void {
+  if (!isSuperadminOrSystem(scope)) throw forbidden('Only a superadmin can do this');
+}
+
+/** Guard for global collections that superadmin and authority may read. */
+export function assertGlobalReader(scope: RepoScope): void {
+  if (scope.kind === 'actor' && scope.role !== ROLES.SUPERADMIN && scope.role !== ROLES.AUTHORITY) {
+    throw forbidden();
+  }
+}

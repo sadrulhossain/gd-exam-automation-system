@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { ROLES } from '@eas/shared';
 import { createLogger } from '../lib/logger.js';
 import type { AuthKit } from '../modules/auth/index.js';
-import { RolePermissionModel, UserModel } from '../models/index.js';
+import { DepartmentModel, FacultyModel, RolePermissionModel, UserModel } from '../models/index.js';
 import {
   DEV_DEPARTMENT_ID,
   DEV_SEED_PASSWORD,
@@ -31,7 +31,11 @@ beforeAll(async () => {
 afterAll(stopAuthDb);
 beforeEach(async () => {
   await resetUsersAndTokens();
-  await RolePermissionModel.deleteMany({});
+  await Promise.all([
+    RolePermissionModel.deleteMany({}),
+    FacultyModel.deleteMany({}),
+    DepartmentModel.deleteMany({}),
+  ]);
 });
 
 describe('seed script', () => {
@@ -61,6 +65,15 @@ describe('seed script', () => {
     expect(await kit.hasher.verify(found?.passwordHash ?? '', DEV_SEED_PASSWORD)).toBe(true);
   });
 
+  it('creates the development department the seeded users belong to', async () => {
+    await seed({ NODE_ENV: 'development' });
+    const department = await DepartmentModel.findById(DEV_DEPARTMENT_ID).lean();
+    expect(department).toMatchObject({ code: 'DEVD', isArchived: false });
+    expect(await FacultyModel.findById(department?.facultyId).lean()).toMatchObject({
+      code: 'DEVF',
+    });
+  });
+
   it('is idempotent and never resets an existing password', async () => {
     await seed({ NODE_ENV: 'development' });
     const newHash = await kit.hasher.hash('changed-by-the-user');
@@ -72,6 +85,8 @@ describe('seed script', () => {
     const admin = await kit.repos.users.findForLogin('admin@example.test');
     expect(admin?.passwordHash).toBe(newHash);
     expect(await UserModel.countDocuments()).toBe(4);
+    expect(await FacultyModel.countDocuments()).toBe(1);
+    expect(await DepartmentModel.countDocuments()).toBe(1);
   });
 
   it('uses SEED_PASSWORD when provided', async () => {
@@ -105,5 +120,6 @@ describe('seed script', () => {
     const user = await kit.repos.users.findForLogin('root@university.example');
     expect(user).toMatchObject({ role: ROLES.SUPERADMIN, mustChangePassword: true });
     expect(await kit.hasher.verify(user?.passwordHash ?? '', PROD_PASSWORD)).toBe(true);
+    expect(await DepartmentModel.countDocuments()).toBe(0);
   });
 });
