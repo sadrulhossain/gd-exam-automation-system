@@ -121,11 +121,15 @@ Production also rejects secrets that still start with `change-me`.
 | `GET /api/v1/ready`  | 200 only when MongoDB answers a ping, otherwise 503 `SERVICE_UNAVAILABLE`. |
 | `GET /api/v1/docs`   | Swagger UI, plus `/api/v1/docs.json`. Not mounted in production.           |
 | `/api/v1/auth/*`     | `login`, `refresh`, `logout`, `change-password`, `me`. See below.          |
+| Superadmin routes    | `faculties`, `departments`, `users`, `roles`, `audit-logs`. See below.     |
 
 **Authentication and authorization:** see [docs/authentication.md](docs/authentication.md)
 for tokens, the refresh cookie versus body trade-off, lockout, permissions and the
 repository layer. Seed development users with `make seed` (or
 `npm run seed -w @eas/api`); it refuses `NODE_ENV=production` unless `ALLOW_PROD_SEED=true`.
+
+**Superadmin module:** faculties, departments, department-admin and authority accounts,
+role permissions and the audit log; see [docs/superadmin-module.md](docs/superadmin-module.md).
 
 **Errors** always use `{ error: { code, message, details? } }` with codes from
 `@eas/shared`. Throw `AppError` (or `notFound()`, `forbidden()`, ...) in handlers; unknown

@@ -3,6 +3,7 @@ import type { Config } from '../config/index.js';
 import type { DbStatus } from '../db/index.js';
 import { createAuthRouter, type AuthKit } from './auth/index.js';
 import { createHealthRouter } from './health/health.routes.js';
+import { createSuperadminModule } from './superadmin/index.js';
 
 export interface ModuleDeps {
   db: DbStatus;
@@ -24,5 +25,6 @@ export function createApiRouter(deps: ModuleDeps): Router {
       auth: deps.auth.middleware,
     }),
   );
+  router.use(createSuperadminModule(deps.auth));
   return router;
 }

@@ -6,6 +6,7 @@ export * from './constants.js';
 export * from './common.js';
 export * from './organization.js';
 export * from './auth.js';
+export * from './superadmin.js';
 export * from './infrastructure.js';
 export * from './academic.js';
 export * from './exams.js';
